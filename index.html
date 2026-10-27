@@ -727,26 +727,71 @@ $('#chainSw').onclick=()=>{ chain=!chain; store.set(CHAIN_KEY,chain); $('#chainS
    MAPA (Leaflet + OpenStreetMap)
    ===================================================================== */
 let map=null, markers=[], meMarker=null, watchId=null, mapActive=-1;
-function loadLeaflet(){
+// Leaflet se busca en varios servidores: si uno falla o está bloqueado, prueba el siguiente.
+// Si pones leaflet.js y leaflet.css en una carpeta "leaflet" junto a index.html, se usan primero.
+const LEAFLET_SRC=[
+  {js:'leaflet/leaflet.js', css:'leaflet/leaflet.css'},
+  {js:'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js', css:'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'},
+  {js:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js', css:'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'},
+  {js:'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', css:'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'}
+];
+function loadTag(tag,attrs,timeout=8000){
   return new Promise((res,rej)=>{
-    if(window.L) return res();
-    const css=document.createElement('link'); css.rel='stylesheet'; css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(css);
-    const s=document.createElement('script'); s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s);
+    const el=document.createElement(tag); Object.assign(el,attrs);
+    const t=setTimeout(()=>{ el.remove(); rej(new Error('timeout')); },timeout);
+    el.onload=()=>{ clearTimeout(t); res(el); };
+    el.onerror=()=>{ clearTimeout(t); el.remove(); rej(new Error('error')); };
+    document.head.appendChild(el);
   });
+}
+let leafletPromise=null;
+function loadLeaflet(){
+  if(window.L) return Promise.resolve();
+  if(leafletPromise) return leafletPromise;
+  leafletPromise=(async()=>{
+    for(const src of LEAFLET_SRC){
+      try{
+        await Promise.all([
+          loadTag('link',{rel:'stylesheet',href:src.css}),
+          loadTag('script',{src:src.js})
+        ]);
+        if(window.L) return;
+      }catch(e){}
+    }
+    leafletPromise=null;
+    throw new Error('Leaflet no disponible');
+  })();
+  return leafletPromise;
+}
+// Capas de mapa: si la primera no responde, se cambia sola a la siguiente
+const TILE_SRC=[
+  {url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', o:{maxZoom:20,subdomains:'abcd',attribution:'© OpenStreetMap · © CARTO'}},
+  {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', o:{maxZoom:19,attribution:'© OpenStreetMap'}},
+  {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', o:{maxZoom:19,attribution:'© Esri · OpenStreetMap'}}
+];
+let tileIdx=0, tileLayer=null;
+function addTiles(){
+  if(tileLayer) map.removeLayer(tileLayer);
+  const src=TILE_SRC[tileIdx]; let ok=0, bad=0;
+  tileLayer=L.tileLayer(src.url,src.o).addTo(map);
+  tileLayer.on('tileload',()=>ok++);
+  tileLayer.on('tileerror',()=>{ bad++; if(!ok && bad>=4 && tileIdx<TILE_SRC.length-1){ tileIdx++; addTiles(); } });
+}
+function mapError(){
+  $('#mapInfo').innerHTML='No se pudo cargar el mapa. <u id="mapRetry" style="cursor:pointer">Reintentar</u>';
+  $('#mapRetry').onclick=()=>{ $('#mapInfo').textContent='Cargando mapa…'; openMap(); };
 }
 async function openMap(focus){
   $('#mapView').classList.add('on');
   if(location.hash!=='#madrid/mapa') history.pushState(null,'','#madrid/mapa');
-  try{ await loadLeaflet(); }catch(e){ $('#mapInfo').textContent='Sin conexión: no se pudo cargar el mapa'; return; }
-  if(!map) initMap();
+  try{ await loadLeaflet(); }catch(e){ mapError(); return; }
+  if(!map){ try{ initMap(); }catch(e){ console.error(e); try{ map&&map.remove(); }catch(_){} map=null; markers=[]; mapError(); return; } }
   setTimeout(()=>{ map.invalidateSize(); if(focus!=null) focusStop(focus,true); },80);
 }
 function closeMap(){ $('#mapView').classList.remove('on'); }
 function initMap(){
   map=L.map('map',{zoomControl:false,attributionControl:true}).setView([40.4165,-3.7030],15);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-    maxZoom:20, subdomains:'abcd', attribution:'© OpenStreetMap · © CARTO'
-  }).addTo(map);
+  addTiles();
   const pts=STOPS.map(s=>[s.lat,s.lng]);
   // dibujar ruta: primero recta, luego la peatonal real si se puede calcular
   const straight=L.polyline(pts.slice(1),{color:'#3e77bb',weight:4,opacity:.7,className:'route-ani'}).addTo(map);
@@ -777,7 +822,8 @@ async function drawWalkingRoute(straight){
   if(!geo){
     try{
       const coords=STOPS.slice(1).map(s=>`${s.lng},${s.lat}`).join(';');
-      const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+      const ctl=new AbortController(); setTimeout(()=>ctl.abort(),10000);
+      const r=await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coords}?overview=full&geometries=geojson`,{signal:ctl.signal});
       const j=await r.json();
       if(j.routes&&j.routes[0]){ geo={c:j.routes[0].geometry.coordinates.map(([x,y])=>[y,x]),d:j.routes[0].distance}; store.set(KEY,geo); }
     }catch(e){}
