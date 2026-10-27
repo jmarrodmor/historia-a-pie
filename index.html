@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b0d12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Historia a pie</title>
+<title>Tempus Auditour</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,900;1,9..144,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -47,7 +47,10 @@ h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;letter-spacing:-.01em}
 .kicker::before{content:"";width:26px;height:2px;background:var(--gold)}
 .hero h1{font-size:clamp(52px,15vw,96px);line-height:.9;font-weight:900;margin-top:14px}
 .hero h1 span{display:inline-block;opacity:0;transform:translateY(40px) rotate(4deg);animation:letter .8s cubic-bezier(.2,.9,.2,1) forwards}
-.hero h1 em{font-style:italic;font-weight:500;color:var(--blue2)}
+.hero h1 em{display:block;font-style:italic;font-weight:500;color:var(--blue2)}
+.hero h1 .auditour{font-size:.88em;font-weight:900;letter-spacing:.01em;color:var(--ink);white-space:nowrap}
+.hero .lema{font-family:Fraunces,Georgia,serif;font-size:21px;line-height:1.35;color:var(--ink2)}
+.hero .lema strong{display:block;color:var(--ink);font-style:italic;font-weight:700;margin-top:2px}
 @keyframes letter{to{opacity:1;transform:none}}
 .hero p{color:var(--ink2);font-size:16px;line-height:1.5;max-width:30em;margin:16px 0 0;opacity:0;animation:fade 1s .9s forwards}
 @keyframes fade{to{opacity:1}}
@@ -211,10 +214,10 @@ h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0;letter-spacing:-.01em}
   <header class="hero">
     <div class="kicker">Audioguías históricas</div>
     <h1 id="brand"></h1>
-    <p>Recorre las ciudades escuchando sus historias: los lugares, los personajes y los momentos que las hicieron como son.</p>
+    <p class="lema">Las calles esconden cientos de historias. <strong>Escúchalas.</strong></p>
   </header>
   <div class="cities" id="cities"></div>
-  <div class="foot">Fotografías: Wikimedia Commons (licencias libres) · Mapas © OpenStreetMap, © CARTO</div>
+  <div class="foot">Fotografías: Wikimedia Commons (licencias libres) · Mapas © OpenStreetMap</div>
 </section>
 
 <!-- ============ CIUDAD ============ -->
@@ -484,8 +487,8 @@ function splitLetters(el,text,delay=0,step=55){
 }
 function buildHome(){
   const b=$('#brand'); b.innerHTML='';
-  const l1=document.createElement('div'); splitLetters(l1,'Historia',100);
-  const l2=document.createElement('em'); splitLetters(l2,'a pie',600);
+  const l1=document.createElement('em'); splitLetters(l1,'Tempus',100);
+  const l2=document.createElement('div'); l2.className='auditour'; splitLetters(l2,'AUDITOUR',450);
   b.append(l1,l2);
   const wrap=$('#cities');
   wrap.innerHTML=CITIES.map(c=>`
@@ -696,7 +699,7 @@ function setMediaMeta(i){
   if(!('mediaSession' in navigator)) return;
   const art=imgUrl['stop-'+i];
   navigator.mediaSession.metadata=new MediaMetadata({
-    title:`${pad(i)} · ${STOPS[i].title}`, artist:'Historia a pie · Madrid', album:'Audioguía de Madrid',
+    title:`${pad(i)} · ${STOPS[i].title}`, artist:'Tempus Auditour · Madrid', album:'Audioguía de Madrid',
     artwork: art? [{src:art,sizes:'512x512',type:'image/jpeg'}] : []
   });
 }
@@ -765,7 +768,6 @@ function loadLeaflet(){
 }
 // Capas de mapa: si la primera no responde, se cambia sola a la siguiente
 const TILE_SRC=[
-  {url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', o:{maxZoom:20,subdomains:'abcd',attribution:'© OpenStreetMap · © CARTO'}},
   {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', o:{maxZoom:19,attribution:'© OpenStreetMap'}},
   {url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', o:{maxZoom:19,attribution:'© Esri · OpenStreetMap'}}
 ];
